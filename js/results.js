@@ -393,7 +393,7 @@
      z-index 600) always render above these boundaries (overlayPane,
      z-index 400) regardless of draw order, so nothing extra is needed to
      keep pins on top. */
-  function initAdminLayers(lmap, onRaionClick, canClickRaion) {
+  function initAdminLayers(lmap, onRaionClick) {
     var G = window.MOLDOVA_ADMIN;
     if (!G) return null; // data file failed to load — the map still works, just blank background
     RAION_CODES = {};
@@ -407,18 +407,23 @@
     /* Boundary hierarchy by line weight: raions (ADM1) thickest, communes
        (ADM2) medium, localities (ADM2) thinnest. Rivers use a saturated
        solid blue so they can't be mistaken for the pale locality lines. */
-    var s1 = { color: "#7F7F7F", weight: 2.2, fillColor: "#BFBFBF", fillOpacity: .06 };  // ADM1 raions — dark grey, thick
+    var s1 = { color: "#8C8C8C", weight: 1.2, fillColor: "#0072BC", fillOpacity: .07 };  // ADM1 raions with projects — grey line, light blue tint
     var s2 = { color: "#8FC1E1", weight: .5, fillColor: "#8FC1E1", fillOpacity: .06, dashArray: "1 3" }; // ADM2 localities — pale blue, hairline dotted
-    var s3 = { color: "#0072BC", weight: 1.2, fillColor: "#0072BC", fillOpacity: .04 };  // ADM2 communes — blue, medium
+    var s3 = { color: "#0072BC", weight: .7, fillColor: "#0072BC", fillOpacity: .04 };  // ADM2 communes — blue, medium
     var RIVER = "#0B3C8C", WATER_FILL = "#2F6FD0";
     // raion selection: highlighted raion keeps a bold outline, the rest are veiled
     var selRaion = null;
-    var s1Sel = { color: "#0B3C8C", weight: 3.5, fillColor: "#FFC740", fillOpacity: .12 };
-    var s1Dim = { color: "#BFBFBF", weight: 1, fillColor: "#FFFFFF", fillOpacity: .65 };
+    var s1Sel = { color: "#0B3C8C", weight: 2.4, fillColor: "#FFC740", fillOpacity: .1 };
+    var s1Dim = { color: "#CFCFCF", weight: .8, fillColor: "#FFFFFF", fillOpacity: .6 };
+    var s1Off = { color: "#D6D6D2", weight: .8, fillColor: "#FFFFFF", fillOpacity: 0 };  // raion with no projects: neutral, no tint
+    // raions that have projects under the current filters (set by setActive); null = not known yet
+    var active = null;
+    function isActive(f) { return !active || !!active[f.properties.ADM1_PCODE]; }
     var s1Style = function (f) {
-      var st = !selRaion ? s1 : f.properties.ADM1_PCODE === selRaion ? s1Sel : s1Dim;
+      var on = isActive(f);
+      var st = selRaion ? (f.properties.ADM1_PCODE === selRaion ? s1Sel : s1Dim) : on ? s1 : s1Off;
       // raions without projects are not clickable: plain cursor instead of the pointer
-      return Object.assign({}, st, { className: canClickRaion(f) ? "am-go" : "am-nogo" });
+      return Object.assign({}, st, { className: on ? "am-go" : "am-nogo" });
     };
     var t1 = function (p) { return "<b>" + esc(p.Raion_name) + "</b><br>ADM1 · " + esc(p.ADM1_PCODE) + " · " + esc(p.ADM1_TYPE); };
     var t2 = function (p) { return "<b>" + esc(p.Denumire) + "</b><br>" + esc(p.Raion_name) + " · " + esc(p.ADM2_PCODE); };
@@ -434,15 +439,15 @@
         cache[key] = L.geoJSON(data, {
           style: function (f) { return typeof st === "function" ? st(f) : st; },
           onEachFeature: function (f, l) {
-            var live = !canClick || canClick(f);
+            var live = function () { return !canClick || canClick(f); };
             l.on("mouseover", function () {
-              if (live) l.setStyle({ weight: 2, color: "#FFC740", fillOpacity: .3 }); // Yellow accent
+              if (live()) l.setStyle({ weight: 2, color: "#FFC740", fillOpacity: .3 }); // Yellow accent
               infoEl.innerHTML = tooltip(f.properties);
               infoEl.hidden = false;
             });
             l.on("mouseout", function () { l.setStyle(typeof st === "function" ? st(f) : st); infoEl.hidden = true; });
             l.on("click", function () {
-              if (!live) return;
+              if (!live()) return;
               if (onClick) onClick(f);
               lmap.fitBounds(l.getBounds(), { maxZoom: 14, padding: [40, 40] });
             });
@@ -484,14 +489,17 @@
 
     function refresh() {
       var z = lmap.getZoom();
-      setLayer(1, toggles.raions ? layerFor("a1_" + (z >= 10 ? 1 : 0), A1[z >= 10 ? 1 : 0], s1Style, t1, onRaionClick, canClickRaion) : null);
+      setLayer(1, toggles.raions ? layerFor("a1_" + (z >= 10 ? 1 : 0), A1[z >= 10 ? 1 : 0], s1Style, t1, onRaionClick, isActive) : null);
       var i2 = z >= 13 ? 2 : z >= 11 ? 1 : 0, i3 = z >= 12 ? 1 : 0;
       setLayer(2, toggles.localities && z >= 8.5 ? layerFor("a2_" + i2, A2[i2], s2, t2) : null);
       setLayer(3, toggles.communes && z >= 9 ? layerFor("c_" + i3, A3[i3], s3, t3) : null);
 
-      // raion outline stays the heaviest line; slightly thicker when zoomed in
-      s1.weight = z >= 9 ? 2.8 : 2.2;
+      // line weights grow with zoom: delicate on the full-country view, firmer
+      // up close — raions always stay the heaviest of the boundary lines
+      s1.weight = z < 8 ? 1 : z < 10 ? 1.4 : 2;
+      s3.weight = z < 10 ? .6 : 1;
       if (cur[1]) { cur[1].setStyle(s1Style); cur[1].bringToFront(); }
+      if (cur[3]) cur[3].setStyle(s3);
 
       var vr = [true, z >= 10, z >= 12], vw = [true, z >= 10, z >= 12];
       RV.forEach(function (l, i) { lmap.removeLayer(l); if (toggles.rivers && vr[i]) l.addTo(lmap); });
@@ -583,8 +591,13 @@
       for (var h = 1; h < poly.length; h++) if (inRing(x, y, poly[h])) return false;
       return true;
     }
-    function highlightRaion(code) {
-      selRaion = code || null;
+    // raions with no projects are never highlighted (unless force, for an opened project)
+    function highlightRaion(code, force) {
+      selRaion = code && (force || !active || active[code]) ? code : null;
+      if (cur[1]) cur[1].setStyle(s1Style);
+    }
+    function setActive(codes) {
+      active = codes;
       if (cur[1]) cur[1].setStyle(s1Style);
     }
     function highlightRaionAt(lat, lon) {
@@ -596,13 +609,13 @@
           return false;
         });
       }
-      highlightRaion(code);
+      highlightRaion(code, true);
     }
 
     lmap.on("zoomend", refresh);
     refresh();
     return {
-      highlightRaionAt: highlightRaionAt, highlightRaion: highlightRaion,
+      highlightRaionAt: highlightRaionAt, highlightRaion: highlightRaion, setActive: setActive,
       raions: (A1[1].features || []).map(function (f) { return { code: f.properties.ADM1_PCODE, name: f.properties.Raion_name }; })
     };
   }
@@ -610,10 +623,13 @@
   /* ---------------- map ---------------- */
   function coordKey(p) { return p._lat.toFixed(5) + "," + p._lon.toFixed(5); }
 
+  /* bubble diameter ~ sqrt(projects at the site), so area tracks the count */
+  function pinSize(n) { return Math.round(14 + 7 * Math.sqrt(n - 1)); }
+
   function markerHtml(group, selected) {
     var col = typeColor(group[0].project_type)[0];
     var badge = group.length > 1 ? '<span class="n">' + group.length + "</span>" : "";
-    return '<div class="rs-pin' + (selected ? " sel" : "") + '" style="--pin-c:' + col + '">' + badge + "</div>";
+    return '<div class="rs-pin' + (selected ? " sel" : "") + '" style="--pin-c:' + col + ";--pin-d:" + pinSize(group.length) + 'px">' + badge + "</div>";
   }
 
   function popupHtml(group) {
@@ -638,10 +654,11 @@
     });
     var bounds = [];
     Object.keys(groups).forEach(function (k) {
-      var g = groups[k];
+      var g = groups[k], d = pinSize(g.length);
       var icon = L.divIcon({ className: "rs-di", html: markerHtml(g, k === selectedKey),
-                             iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -12] });
-      var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name });
+                             iconSize: [d + 8, d + 8], iconAnchor: [(d + 8) / 2, (d + 8) / 2], popupAnchor: [0, -d / 2] });
+      // larger bubbles sit underneath so small ones stay clickable
+      var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name, zIndexOffset: -d * 10 });
       m.on("click", function () {
         if (g.length === 1) { location.hash = "project=" + encodeURIComponent(g[0].project_id); }
         else { m.bindPopup(popupHtml(g), { maxWidth: 300 }).openPopup(); }
@@ -672,11 +689,6 @@
     if (map) map.invalidateSize();
   }
 
-  function raionHasProjects(feature) {
-    var code = feature.properties.ADM1_PCODE;
-    return projects.some(function (p) { return districtCode(p.district) === code; });
-  }
-
   /* District filter lists every raion: spellings found in the data first
      (one per raion), then the raions that have no projects yet */
   function districtOptions(names) {
@@ -701,7 +713,6 @@
     controls.district.value = val;
     if (controls.muni) controls.muni.value = "";
     render();
-    if (!val && adminApi) adminApi.highlightRaion(code); // raion has no projects: highlight only
   }
 
   /* ---------------- overview render ---------------- */
@@ -714,7 +725,13 @@
       '<div class="empty-state"><b>No projects match the current filters.</b><br>Try clearing a filter or using a broader search term.</div>';
 
     var bounds = drawMarkers(shownList);
-    if (!openId && adminApi) adminApi.highlightRaion(districtCode(f.district));
+    if (!openId && adminApi) {
+      // a raion is "active" when it has projects under every filter except District/Municipality
+      var codes = {}, rest = Object.assign({}, f, { district: "", muni: "" });
+      projects.forEach(function (p) { var c = districtCode(p.district); if (c && matches(p, rest)) codes[c] = true; });
+      adminApi.setActive(codes);
+      adminApi.highlightRaion(districtCode(f.district));
+    }
     if (!openId && bounds.length) {
       map.fitBounds(bounds, { padding: [34, 34], maxZoom: bounds.length === 1 ? 13 : 9 });
     }
@@ -839,7 +856,7 @@
 
     /* map — vector admin boundaries instead of raster tiles, see initAdminLayers() */
     map = L.map(mapEl, { scrollWheelZoom: false, center: [47.1, 28.6], zoom: 7, zoomSnap: .5, minZoom: 6, maxZoom: 18 });
-    adminApi = initAdminLayers(map, selectDistrictFromMap, raionHasProjects);
+    adminApi = initAdminLayers(map, selectDistrictFromMap);
     markerLayer = L.layerGroup().addTo(map);
 
     /* filters */
@@ -854,7 +871,6 @@
     fillSelect(controls.muni, uniq("municipality"), "All municipalities");
     fillSelect(controls.facility, uniq("facility_type"), "All facility types");
     fillSelect(controls.status, uniq("status"), "All statuses");
-    if (controls.type && types.indexOf("PCP") !== -1) controls.type.value = "PCP";
 
     /* map/tile pins and accents are coloured by project type — one dot per
        type actually present in the data, plus the multi-project pin hint */
