@@ -643,7 +643,24 @@
     }).join("") + "</div>";
   }
 
+  /* Bubbles are clustered by screen distance, so the full-country view stays
+     readable and more, smaller bubbles split out as you zoom in. Sites that
+     fall in the same grid cell merge into one bubble showing the project
+     count; clicking it zooms in. Clustering is off while a project page is
+     open (the selected pin must stay individually addressable). */
+  var CLUSTER_PX = 46, CLUSTER_MAX_ZOOM = 12;
+  var lastList = null;
+
+  function clusterHtml(members) {
+    var types = {};
+    members.forEach(function (p) { types[p.project_type] = true; });
+    var one = Object.keys(types).length === 1;
+    var col = one ? typeColor(members[0].project_type)[0] : "#5B6B7F";
+    return '<div class="rs-pin cl" style="--pin-c:' + col + '"><span class="cn">' + members.length + "</span></div>";
+  }
+
   function drawMarkers(list) {
+    lastList = list;
     markerLayer.clearLayers();
     markers = {};
     var groups = {};
@@ -652,20 +669,47 @@
       var k = coordKey(p);
       (groups[k] = groups[k] || []).push(p);
     });
-    var bounds = [];
-    Object.keys(groups).forEach(function (k) {
-      var g = groups[k], d = pinSize();
-      var icon = L.divIcon({ className: "rs-di", html: markerHtml(g, k === selectedKey),
-                             iconSize: [d + 8, d + 8], iconAnchor: [(d + 8) / 2, (d + 8) / 2], popupAnchor: [0, -d / 2] });
-      // larger bubbles sit underneath so small ones stay clickable
-      var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name, zIndexOffset: 0 });
-      m.on("click", function () {
-        if (g.length === 1) { location.hash = "project=" + encodeURIComponent(g[0].project_id); }
-        else { m.bindPopup(popupHtml(g), { maxWidth: 300 }).openPopup(); }
+    var bounds = [], keys = Object.keys(groups);
+    keys.forEach(function (k) { bounds.push([groups[k][0]._lat, groups[k][0]._lon]); });
+
+    var z = map.getZoom();
+    var cells = {};
+    keys.forEach(function (k) {
+      var g = groups[k], cell = k;
+      if (!openId && z < CLUSTER_MAX_ZOOM) {
+        var pt = map.project([g[0]._lat, g[0]._lon], z);
+        cell = "c" + Math.floor(pt.x / CLUSTER_PX) + "_" + Math.floor(pt.y / CLUSTER_PX);
+      }
+      (cells[cell] = cells[cell] || []).push(k);
+    });
+
+    Object.keys(cells).forEach(function (ck) {
+      var ks = cells[ck];
+      if (ks.length === 1) {
+        var k = ks[0], g = groups[k], d = pinSize();
+        var icon = L.divIcon({ className: "rs-di", html: markerHtml(g, k === selectedKey),
+                               iconSize: [d + 8, d + 8], iconAnchor: [(d + 8) / 2, (d + 8) / 2], popupAnchor: [0, -d / 2] });
+        var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name });
+        m.on("click", function () {
+          if (g.length === 1) { location.hash = "project=" + encodeURIComponent(g[0].project_id); }
+          else { m.bindPopup(popupHtml(g), { maxWidth: 300 }).openPopup(); }
+        });
+        m.addTo(markerLayer);
+        markers[k] = m;
+        return;
+      }
+      // merged bubble: centre on the project-weighted mean position
+      var members = [], lat = 0, lon = 0, pts = [];
+      ks.forEach(function (k) {
+        groups[k].forEach(function (p) { members.push(p); lat += p._lat; lon += p._lon; });
+        pts.push([groups[k][0]._lat, groups[k][0]._lon]);
       });
-      m.addTo(markerLayer);
-      markers[k] = m;
-      bounds.push([g[0]._lat, g[0]._lon]);
+      var cm = L.marker([lat / members.length, lon / members.length], {
+        icon: L.divIcon({ className: "rs-di", html: clusterHtml(members), iconSize: [34, 34], iconAnchor: [17, 17] }),
+        title: members.length + " projects"
+      });
+      cm.on("click", function () { map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 }); });
+      cm.addTo(markerLayer);
     });
     return bounds;
   }
@@ -858,6 +902,7 @@
     map = L.map(mapEl, { scrollWheelZoom: false, center: [47.1, 28.6], zoom: 7, zoomSnap: .5, minZoom: 6, maxZoom: 18 });
     adminApi = initAdminLayers(map, selectDistrictFromMap);
     markerLayer = L.layerGroup().addTo(map);
+    map.on("zoomend", function () { if (lastList) drawMarkers(lastList); });
 
     /* filters */
     function uniq(key) {
