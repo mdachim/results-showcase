@@ -52,6 +52,7 @@
   var map, markerLayer;
   var markers = {};          // coordKey -> Leaflet marker
   var selectedKey = null;
+  var adminApi = null; // set by initAdminLayers()
   var openId = null;         // project currently open on its own page
 
   var controls = {
@@ -384,9 +385,21 @@
        the brand Grey (the most prominent layer, neutral so it doesn't
        compete with the blue project pins); communes — the lightest/most
        optional layer — use the lighter blue instead. */
-    var s1 = { color: "#BFBFBF", weight: 1, fillColor: "#BFBFBF", fillOpacity: .06 };    // ADM1 raions — Grey
-    var s2 = { color: "#4F9ED0", weight: .5, fillColor: "#8FC1E1", fillOpacity: .1 };    // ADM2 localities — Blue 03 / Blue 02
-    var s3 = { color: "#05568B", weight: .5, fillColor: "#0072BC", fillOpacity: .05, dashArray: "3 2" }; // communes — Blue 05 / Blue 04
+    /* Boundary hierarchy by line weight: raions (ADM1) thickest, communes
+       (ADM2) medium, localities (ADM2) thinnest. Rivers use a saturated
+       solid blue so they can't be mistaken for the pale locality lines. */
+    var s1 = { color: "#7F7F7F", weight: 2.2, fillColor: "#BFBFBF", fillOpacity: .06 };  // ADM1 raions — dark grey, thick
+    var s2 = { color: "#8FC1E1", weight: .5, fillColor: "#8FC1E1", fillOpacity: .06, dashArray: "1 3" }; // ADM2 localities — pale blue, hairline dotted
+    var s3 = { color: "#0072BC", weight: 1.2, fillColor: "#0072BC", fillOpacity: .04 };  // ADM2 communes — blue, medium
+    var RIVER = "#0B3C8C", WATER_FILL = "#2F6FD0";
+    // raion selection: highlighted raion keeps a bold outline, the rest are veiled
+    var selRaion = null;
+    var s1Sel = { color: "#0B3C8C", weight: 3.5, fillColor: "#FFC740", fillOpacity: .12 };
+    var s1Dim = { color: "#BFBFBF", weight: 1, fillColor: "#FFFFFF", fillOpacity: .65 };
+    var s1Style = function (f) {
+      if (!selRaion) return s1;
+      return f.properties.ADM1_PCODE === selRaion ? s1Sel : s1Dim;
+    };
     var t1 = function (p) { return "<b>" + esc(p.Raion_name) + "</b><br>ADM1 · " + esc(p.ADM1_PCODE) + " · " + esc(p.ADM1_TYPE); };
     var t2 = function (p) { return "<b>" + esc(p.Denumire) + "</b><br>" + esc(p.Raion_name) + " · " + esc(p.ADM2_PCODE); };
     var t3 = function (p) { return "<b>" + esc(p.nm_ro) + "</b><br>" + esc(p.lau2_type) + " · code " + esc(p.lau2_codst); };
@@ -399,14 +412,14 @@
     function layerFor(key, data, st, tooltip) {
       if (!cache[key]) {
         cache[key] = L.geoJSON(data, {
-          style: function () { return st; },
+          style: function (f) { return typeof st === "function" ? st(f) : st; },
           onEachFeature: function (f, l) {
             l.on("mouseover", function () {
               l.setStyle({ weight: 2, color: "#FFC740", fillOpacity: .3 }); // Yellow accent
               infoEl.innerHTML = tooltip(f.properties);
               infoEl.hidden = false;
             });
-            l.on("mouseout", function () { l.setStyle(st); infoEl.hidden = true; });
+            l.on("mouseout", function () { l.setStyle(typeof st === "function" ? st(f) : st); infoEl.hidden = true; });
             l.on("click", function () { lmap.fitBounds(l.getBounds(), { maxZoom: 14, padding: [40, 40] }); });
           }
         });
@@ -415,20 +428,20 @@
     }
     function riverLayer(d, w, c) {
       return L.geoJSON(d, {
-        style: { color: c || "#4F9ED0", weight: w },
+        style: { color: c || RIVER, weight: w, opacity: .9 },
         onEachFeature: function (f, l) { if (f.properties.name) l.bindTooltip(f.properties.name, { sticky: true }); }
       });
     }
     function waterLayer(d) {
       return L.geoJSON(d, {
-        style: { color: "#4F9ED0", weight: .4, fillColor: "#8FC1E1", fillOpacity: .5 },
+        style: { color: RIVER, weight: .6, fillColor: WATER_FILL, fillOpacity: .55 },
         onEachFeature: function (f, l) {
           var p = f.properties;
           l.bindTooltip((p.name || "unnamed") + " · " + p.water, { sticky: true });
         }
       });
     }
-    var RV = [riverLayer(G.RIV_A, 1.2), riverLayer(G.RIV_B, .6), riverLayer(G.RIV_C, .4, "#8FC1E1")];
+    var RV = [riverLayer(G.RIV_A, 2.2), riverLayer(G.RIV_B, 1.1), riverLayer(G.RIV_C, .8, "#2F6FD0")];
     var WT = [waterLayer(G.WAT_0), waterLayer(G.WAT_1), waterLayer(G.WAT_2)];
 
     // default state: raions + communes on, localities/rivers/water off
@@ -446,15 +459,14 @@
 
     function refresh() {
       var z = lmap.getZoom();
-      setLayer(1, toggles.raions ? layerFor("a1_" + (z >= 10 ? 1 : 0), A1[z >= 10 ? 1 : 0], s1, t1) : null);
+      setLayer(1, toggles.raions ? layerFor("a1_" + (z >= 10 ? 1 : 0), A1[z >= 10 ? 1 : 0], s1Style, t1) : null);
       var i2 = z >= 13 ? 2 : z >= 11 ? 1 : 0, i3 = z >= 12 ? 1 : 0;
       setLayer(2, toggles.localities && z >= 8.5 ? layerFor("a2_" + i2, A2[i2], s2, t2) : null);
       setLayer(3, toggles.communes && z >= 9 ? layerFor("c_" + i3, A3[i3], s3, t3) : null);
 
-      // thicken the raion outline once locality/commune borders are visible
-      // (from zoom 9) so it stays distinguishable from their thinner lines
-      s1.weight = z >= 9 ? 1.8 : 1;
-      if (cur[1]) { cur[1].setStyle(s1); cur[1].bringToFront(); }
+      // raion outline stays the heaviest line; slightly thicker when zoomed in
+      s1.weight = z >= 9 ? 2.8 : 2.2;
+      if (cur[1]) { cur[1].setStyle(s1Style); cur[1].bringToFront(); }
 
       var vr = [true, z >= 10, z >= 12], vw = [true, z >= 10, z >= 12];
       RV.forEach(function (l, i) { lmap.removeLayer(l); if (toggles.rivers && vr[i]) l.addTo(lmap); });
@@ -531,8 +543,37 @@
     statusCtl.onAdd = function () { return statusEl; };
     statusCtl.addTo(lmap);
 
+    /* highlight the raion containing a point (lat/lon), dim the others;
+       call with no args to clear */
+    function inRing(x, y, ring) {
+      var c = false;
+      for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        var xi = ring[i][0], yi = ring[i][1], xj = ring[j][0], yj = ring[j][1];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) c = !c;
+      }
+      return c;
+    }
+    function inPoly(x, y, poly) {
+      if (!inRing(x, y, poly[0])) return false;
+      for (var h = 1; h < poly.length; h++) if (inRing(x, y, poly[h])) return false;
+      return true;
+    }
+    function highlightRaionAt(lat, lon) {
+      var code = null;
+      if (lat != null && lon != null) {
+        (A1[1].features || []).some(function (f) {
+          var g = f.geometry, polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+          if (polys.some(function (pl) { return inPoly(lon, lat, pl); })) { code = f.properties.ADM1_PCODE; return true; }
+          return false;
+        });
+      }
+      selRaion = code;
+      if (cur[1]) cur[1].setStyle(s1Style);
+    }
+
     lmap.on("zoomend", refresh);
     refresh();
+    return { highlightRaionAt: highlightRaionAt };
   }
 
   /* ---------------- map ---------------- */
@@ -651,6 +692,7 @@
     if (p._lat != null) {
       if (!markers[p._key]) drawMarkers(shownList.length ? shownList : projects);
       setSelectedPin(p._key);
+      if (adminApi) adminApi.highlightRaionAt(p._lat, p._lon);
       map.setView([p._lat, p._lon], 13, { animate: !window.CoS.reducedMotion });
     }
     window.scrollTo({ top: 0, behavior: "auto" });
@@ -666,6 +708,7 @@
     detailEl.hidden = true;
     overviewEl.hidden = false;
     setSelectedPin(null);
+    if (adminApi) adminApi.highlightRaionAt();
     dockMap("map-slot-overview", 520);
     render();
   }
@@ -732,7 +775,7 @@
 
     /* map — vector admin boundaries instead of raster tiles, see initAdminLayers() */
     map = L.map(mapEl, { scrollWheelZoom: false, center: [47.1, 28.6], zoom: 7, zoomSnap: .5, minZoom: 6, maxZoom: 18 });
-    initAdminLayers(map);
+    adminApi = initAdminLayers(map);
     markerLayer = L.layerGroup().addTo(map);
 
     /* filters */
