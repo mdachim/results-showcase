@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Results Showcase — Cities of Solidarity Moldova</title>
+<meta name="description" content="A map and portfolio of UNHCR-funded communal infrastructure projects across Moldova — browse the map, then open each project on its own page.">
+<meta property="og:title" content="Results Showcase — Cities of Solidarity Moldova">
+<meta property="og:description" content="A map and portfolio of UNHCR-funded communal infrastructure projects across Moldova — browse the map, then open each project on its own page.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Cities of Solidarity Moldova">
+<link rel="icon" href="assets/images/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="site">
+  <div class="inner">
+    <a class="site-logo" href="index.html" aria-label="Cities of Solidarity Moldova — home">
+      <img src="assets/logos/unhcr-cos-logo-blue.svg" alt="UNHCR — The UN Refugee Agency · Cities of Solidarity">
+    </a>
+    <button id="nav-toggle" aria-expanded="false" aria-controls="site-nav" aria-label="Toggle navigation">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <nav class="site-nav" id="site-nav" aria-label="Main">
+      <a href="index.html" aria-current="page">Results Showcase</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ======================= OVERVIEW ======================= -->
+<div id="rs-overview">
+
+<header class="page-hero" id="main">
+  <div class="wrap">
+    <p class="eyebrow"><span class="ch">Portfolio</span> UNHCR-funded infrastructure across Moldova</p>
+    <h1>The <em>Results Showcase.</em></h1>
+    <p class="lede">Every kindergarten classroom, sports field, community centre and collective accommodation site that UNHCR has invested in across Moldova. Browse the map or the gallery below — each project opens on its own page, with the photographs up front and the full record beside the map.</p>
+    <p class="data-status" id="data-status" style="margin-top:22px">Loading the Results Showcase…</p>
+  </div>
+</header>
+
+<section class="chapter" style="padding-top:44px">
+  <div class="wrap">
+
+    <!-- Headline stats: computed from the data file -->
+    <div class="stat-row" id="rs-stats" data-reveal hidden>
+      <div class="stat-card" style="--ac:var(--blue)">
+        <span class="tag">Portfolio</span>
+        <div class="num"><span class="count" id="st-projects" data-target="0">0</span></div>
+        <div class="lbl">Projects funded across the country</div>
+      </div>
+      <div class="stat-card" style="--ac:var(--yellow)">
+        <span class="tag">Coverage</span>
+        <div class="num"><span class="count" id="st-districts" data-target="0">0</span></div>
+        <div class="lbl">Districts with at least one investment</div>
+      </div>
+      <div class="stat-card" style="--ac:var(--green)">
+        <span class="tag">Investment (USD)</span>
+        <div class="num"><span class="count" id="st-investment" data-target="0">0</span></div>
+        <div class="lbl">Total investment recorded to date</div>
+      </div>
+      <div class="stat-card" style="--ac:var(--cyan)">
+        <span class="tag">Delivery</span>
+        <div class="num"><span class="count" id="st-completed" data-target="0">0</span></div>
+        <div class="lbl">Projects already completed</div>
+      </div>
+    </div>
+
+    <!-- Filters (left) + map (right, half width) -->
+    <div class="rs-top-row">
+      <!-- Filters: options are generated from the data file -->
+      <div class="filters rs-filters" role="search" aria-label="Filter projects">
+        <label>Keyword search
+          <input type="search" id="f-search" placeholder="e.g. kindergarten, Cahul, playground…" autocomplete="off">
+        </label>
+        <label>Type of Project
+          <select id="f-type"><option value="">All types</option></select>
+        </label>
+        <label>District
+          <select id="f-district"><option value="">All districts</option></select>
+        </label>
+        <label>Municipality
+          <select id="f-municipality"><option value="">All municipalities</option></select>
+        </label>
+        <label>Facility type
+          <select id="f-facility"><option value="">All facility types</option></select>
+        </label>
+        <label>Status
+          <select id="f-status"><option value="">All statuses</option></select>
+        </label>
+        <div class="reset"><button type="button" id="f-reset">Clear filters</button></div>
+      </div>
+
+      <!-- Map (the map element is moved into the project page when one is open) -->
+      <div class="rs-map-card" data-reveal>
+        <div id="map-slot-overview"><div id="rs-map" role="application" aria-label="Map of UNHCR-funded projects in Moldova"></div></div>
+        <div class="rs-legend" id="rs-type-legend" aria-hidden="true"></div>
+      </div>
+    </div>
+
+    <p class="result-count" id="result-count" aria-live="polite"></p>
+    <div class="rs-table-wrap" id="rs-grid"></div>
+
+    <div class="takeaway" data-reveal style="margin-top:44px">
+      <p><b>How to use this showcase:</b> filter the gallery, then open any project — or any map pin — to see it on its own page with photographs, the full record and the map alongside. All content loads from <a href="data/results_showcase.json">data/results_showcase.json</a> — adding a project is one new row in the master Excel file; see <code>README.md</code> for the two-minute workflow.</p>
+    </div>
+  </div>
+</section>
+
+</div><!-- /rs-overview -->
+
+<!-- ======================= PROJECT PAGE ======================= -->
+<section id="rs-detail" class="chapter" hidden>
+  <div class="wrap">
+    <div class="detail-topbar">
+      <button type="button" class="back-btn" id="detail-back">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+        All projects
+      </button>
+      <div class="detail-steps">
+        <button type="button" class="step-btn" id="detail-prev" aria-label="Previous project">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        </button>
+        <span class="step-count" id="detail-count"></span>
+        <button type="button" class="step-btn" id="detail-next" aria-label="Next project">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="detail-cols">
+      <div class="detail-main" id="detail-main"><!-- rendered by results.js --></div>
+      <aside class="detail-side">
+        <div class="detail-map-card">
+          <div id="map-slot-detail"><!-- the map moves here --></div>
+        </div>
+        <div class="detail-loc" id="detail-loc"><!-- rendered by results.js --></div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="cols">
+      <div class="flogo">
+        <img src="assets/logos/unhcr-cos-logo-white.svg" alt="UNHCR — The UN Refugee Agency · Cities of Solidarity">
+        <p>Cities of Solidarity supports Moldovan municipalities to lead on refugee inclusion while strengthening services for all residents — aligning humanitarian, development and municipal systems.</p>
+      </div>
+      <div>
+        <p class="lb">Explore</p>
+        <ul>
+          <li><a href="index.html">Results Showcase</a></li>
+        </ul>
+      </div>
+      <div>
+        <p class="lb">Documents</p>
+        <ul>
+          <li><a href="data/results_showcase.json">Results Showcase data (JSON)</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot">
+      <span>© <span data-year>2026</span> UNHCR Moldova — Cities of Solidarity</span>
+      <span>Local Action Plans for inclusive municipal development</span>
+    </div>
+  </div>
+</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="js/data-loader.js"></script>
+<script src="js/main.js"></script>
+<script src="assets/map/moldova_admin_data.js"></script>
+<script src="js/results.js"></script>
+</body>
+</html>

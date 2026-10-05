@@ -1,0 +1,3 @@
+# The editable master stays local only — the site reads data/results_showcase.json.
+data/*.xlsx
+__pycache__/
