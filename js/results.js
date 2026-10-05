@@ -393,7 +393,7 @@
      z-index 600) always render above these boundaries (overlayPane,
      z-index 400) regardless of draw order, so nothing extra is needed to
      keep pins on top. */
-  function initAdminLayers(lmap, onRaionClick) {
+  function initAdminLayers(lmap, onRaionClick, canClickRaion) {
     var G = window.MOLDOVA_ADMIN;
     if (!G) return null; // data file failed to load — the map still works, just blank background
     RAION_CODES = {};
@@ -416,8 +416,9 @@
     var s1Sel = { color: "#0B3C8C", weight: 3.5, fillColor: "#FFC740", fillOpacity: .12 };
     var s1Dim = { color: "#BFBFBF", weight: 1, fillColor: "#FFFFFF", fillOpacity: .65 };
     var s1Style = function (f) {
-      if (!selRaion) return s1;
-      return f.properties.ADM1_PCODE === selRaion ? s1Sel : s1Dim;
+      var st = !selRaion ? s1 : f.properties.ADM1_PCODE === selRaion ? s1Sel : s1Dim;
+      // raions without projects are not clickable: plain cursor instead of the pointer
+      return Object.assign({}, st, { className: canClickRaion(f) ? "am-go" : "am-nogo" });
     };
     var t1 = function (p) { return "<b>" + esc(p.Raion_name) + "</b><br>ADM1 · " + esc(p.ADM1_PCODE) + " · " + esc(p.ADM1_TYPE); };
     var t2 = function (p) { return "<b>" + esc(p.Denumire) + "</b><br>" + esc(p.Raion_name) + " · " + esc(p.ADM2_PCODE); };
@@ -428,18 +429,20 @@
     infoEl.className = "am-info";
 
     var cache = {};
-    function layerFor(key, data, st, tooltip, onClick) {
+    function layerFor(key, data, st, tooltip, onClick, canClick) {
       if (!cache[key]) {
         cache[key] = L.geoJSON(data, {
           style: function (f) { return typeof st === "function" ? st(f) : st; },
           onEachFeature: function (f, l) {
+            var live = !canClick || canClick(f);
             l.on("mouseover", function () {
-              l.setStyle({ weight: 2, color: "#FFC740", fillOpacity: .3 }); // Yellow accent
+              if (live) l.setStyle({ weight: 2, color: "#FFC740", fillOpacity: .3 }); // Yellow accent
               infoEl.innerHTML = tooltip(f.properties);
               infoEl.hidden = false;
             });
             l.on("mouseout", function () { l.setStyle(typeof st === "function" ? st(f) : st); infoEl.hidden = true; });
             l.on("click", function () {
+              if (!live) return;
               if (onClick) onClick(f);
               lmap.fitBounds(l.getBounds(), { maxZoom: 14, padding: [40, 40] });
             });
@@ -481,7 +484,7 @@
 
     function refresh() {
       var z = lmap.getZoom();
-      setLayer(1, toggles.raions ? layerFor("a1_" + (z >= 10 ? 1 : 0), A1[z >= 10 ? 1 : 0], s1Style, t1, onRaionClick) : null);
+      setLayer(1, toggles.raions ? layerFor("a1_" + (z >= 10 ? 1 : 0), A1[z >= 10 ? 1 : 0], s1Style, t1, onRaionClick, canClickRaion) : null);
       var i2 = z >= 13 ? 2 : z >= 11 ? 1 : 0, i3 = z >= 12 ? 1 : 0;
       setLayer(2, toggles.localities && z >= 8.5 ? layerFor("a2_" + i2, A2[i2], s2, t2) : null);
       setLayer(3, toggles.communes && z >= 9 ? layerFor("c_" + i3, A3[i3], s3, t3) : null);
@@ -598,7 +601,10 @@
 
     lmap.on("zoomend", refresh);
     refresh();
-    return { highlightRaionAt: highlightRaionAt, highlightRaion: highlightRaion };
+    return {
+      highlightRaionAt: highlightRaionAt, highlightRaion: highlightRaion,
+      raions: (A1[1].features || []).map(function (f) { return { code: f.properties.ADM1_PCODE, name: f.properties.Raion_name }; })
+    };
   }
 
   /* ---------------- map ---------------- */
@@ -664,6 +670,25 @@
     if (slot && mapEl.parentElement !== slot) slot.appendChild(mapEl);
     mapEl.style.height = height + "px";
     if (map) map.invalidateSize();
+  }
+
+  function raionHasProjects(feature) {
+    var code = feature.properties.ADM1_PCODE;
+    return projects.some(function (p) { return districtCode(p.district) === code; });
+  }
+
+  /* District filter lists every raion: spellings found in the data first
+     (one per raion), then the raions that have no projects yet */
+  function districtOptions(names) {
+    var seen = {}, out = [];
+    names.forEach(function (d) {
+      var c = districtCode(d);
+      if (c && seen[c]) return;
+      if (c) seen[c] = true;
+      out.push(d);
+    });
+    if (adminApi) adminApi.raions.forEach(function (r) { if (!seen[r.code]) out.push(r.name); });
+    return out.sort(function (a, b) { return normName(a) < normName(b) ? -1 : 1; });
   }
 
   /* clicking a raion on the map sets the District filter to match */
@@ -814,7 +839,7 @@
 
     /* map — vector admin boundaries instead of raster tiles, see initAdminLayers() */
     map = L.map(mapEl, { scrollWheelZoom: false, center: [47.1, 28.6], zoom: 7, zoomSnap: .5, minZoom: 6, maxZoom: 18 });
-    adminApi = initAdminLayers(map, selectDistrictFromMap);
+    adminApi = initAdminLayers(map, selectDistrictFromMap, raionHasProjects);
     markerLayer = L.layerGroup().addTo(map);
 
     /* filters */
@@ -825,7 +850,7 @@
     }
     var types = uniq("project_type");
     fillSelect(controls.type, types, "All types");
-    fillSelect(controls.district, uniq("district"), "All districts");
+    fillSelect(controls.district, districtOptions(uniq("district")), "All districts");
     fillSelect(controls.muni, uniq("municipality"), "All municipalities");
     fillSelect(controls.facility, uniq("facility_type"), "All facility types");
     fillSelect(controls.status, uniq("status"), "All statuses");

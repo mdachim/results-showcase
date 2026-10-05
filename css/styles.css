@@ -701,6 +701,7 @@ header.page-hero .lede{max-width:44em}
 .am-results{max-height:140px;overflow-y:auto;margin-top:6px}
 .am-results div{padding:4px 6px;border-radius:6px;cursor:pointer;font-size:12px}
 .am-results div:hover{background:var(--paper-2)}
+#rs-map .leaflet-interactive.am-nogo{cursor:default}
 .am-info{
   background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-soft);
   padding:8px 12px;max-width:240px;font-size:12.5px;line-height:1.4;color:var(--ink-soft);
