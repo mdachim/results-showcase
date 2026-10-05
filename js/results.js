@@ -623,13 +623,13 @@
   /* ---------------- map ---------------- */
   function coordKey(p) { return p._lat.toFixed(5) + "," + p._lon.toFixed(5); }
 
-  /* bubble diameter ~ sqrt(projects at the site), so area tracks the count */
-  function pinSize(n) { return Math.round(14 + 7 * Math.sqrt(n - 1)); }
+  /* fixed bubble size: every project site reads the same; the badge shows the count */
+  function pinSize() { return 18; }
 
   function markerHtml(group, selected) {
     var col = typeColor(group[0].project_type)[0];
     var badge = group.length > 1 ? '<span class="n">' + group.length + "</span>" : "";
-    return '<div class="rs-pin' + (selected ? " sel" : "") + '" style="--pin-c:' + col + ";--pin-d:" + pinSize(group.length) + 'px">' + badge + "</div>";
+    return '<div class="rs-pin' + (selected ? " sel" : "") + '" style="--pin-c:' + col + ";--pin-d:" + pinSize() + 'px">' + badge + "</div>";
   }
 
   function popupHtml(group) {
@@ -654,11 +654,11 @@
     });
     var bounds = [];
     Object.keys(groups).forEach(function (k) {
-      var g = groups[k], d = pinSize(g.length);
+      var g = groups[k], d = pinSize();
       var icon = L.divIcon({ className: "rs-di", html: markerHtml(g, k === selectedKey),
                              iconSize: [d + 8, d + 8], iconAnchor: [(d + 8) / 2, (d + 8) / 2], popupAnchor: [0, -d / 2] });
       // larger bubbles sit underneath so small ones stay clickable
-      var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name, zIndexOffset: -d * 10 });
+      var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name, zIndexOffset: 0 });
       m.on("click", function () {
         if (g.length === 1) { location.hash = "project=" + encodeURIComponent(g[0].project_id); }
         else { m.bindPopup(popupHtml(g), { maxWidth: 300 }).openPopup(); }
