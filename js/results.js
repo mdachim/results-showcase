@@ -407,13 +407,13 @@
     /* Boundary hierarchy by line weight: raions (ADM1) thickest, communes
        (ADM2) medium, localities (ADM2) thinnest. Rivers use a saturated
        solid blue so they can't be mistaken for the pale locality lines. */
-    var s1 = { color: "#8C8C8C", weight: 1.2, fillColor: "#0072BC", fillOpacity: .07 };  // ADM1 raions with projects — grey line, light blue tint
-    var s2 = { color: "#8FC1E1", weight: .5, fillColor: "#8FC1E1", fillOpacity: .06, dashArray: "1 3" }; // ADM2 localities — pale blue, hairline dotted
-    var s3 = { color: "#0072BC", weight: .7, fillColor: "#0072BC", fillOpacity: .04 };  // ADM2 communes — blue, medium
+    var s1 = { color: "#7A7A7A", weight: 1.2, fillColor: "#0072BC", fillOpacity: .06 };  // ADM1 raions with projects — grey line, light blue tint
+    var s2 = { color: "#B5B5B5", weight: .5, fillColor: "#FFFFFF", fillOpacity: 0, dashArray: "1 3" }; // ADM2 localities — pale blue, hairline dotted
+    var s3 = { color: "#A0A0A0", weight: .7, fillColor: "#FFFFFF", fillOpacity: 0 };  // ADM2 communes — blue, medium
     var RIVER = "#0B3C8C", WATER_FILL = "#2F6FD0";
     // raion selection: highlighted raion keeps a bold outline, the rest are veiled
     var selRaion = null;
-    var s1Sel = { color: "#0B3C8C", weight: 2.4, fillColor: "#FFC740", fillOpacity: .1 };
+    var s1Sel = { color: "#0072BC", weight: 2, fillColor: "#0072BC", fillOpacity: .08 };
     var s1Dim = { color: "#CFCFCF", weight: .8, fillColor: "#FFFFFF", fillOpacity: .6 };
     var s1Off = { color: "#D6D6D2", weight: .8, fillColor: "#FFFFFF", fillOpacity: 0 };  // raion with no projects: neutral, no tint
     // raions that have projects under the current filters (set by setActive); null = not known yet
@@ -498,7 +498,7 @@
       // up close — raions always stay the heaviest of the boundary lines
       s1.weight = z < 8 ? 1 : z < 10 ? 1.4 : 2;
       s3.weight = z < 10 ? .6 : 1;
-      if (cur[1]) { cur[1].setStyle(s1Style); cur[1].bringToFront(); }
+      restyleRaions();
       if (cur[3]) cur[3].setStyle(s3);
 
       var vr = [true, z >= 10, z >= 12], vw = [true, z >= 10, z >= 12];
@@ -591,14 +591,20 @@
       for (var h = 1; h < poly.length; h++) if (inRing(x, y, poly[h])) return false;
       return true;
     }
+    function restyleRaions() {
+      if (!cur[1]) return;
+      cur[1].setStyle(s1Style); cur[1].bringToFront();
+      // draw the selected raion last so neighbours' veils don't cover its outline
+      if (selRaion) cur[1].eachLayer(function (l) { if (l.feature.properties.ADM1_PCODE === selRaion) l.bringToFront(); });
+    }
     // raions with no projects are never highlighted (unless force, for an opened project)
     function highlightRaion(code, force) {
       selRaion = code && (force || !active || active[code]) ? code : null;
-      if (cur[1]) cur[1].setStyle(s1Style);
+      restyleRaions();
     }
     function setActive(codes) {
       active = codes;
-      if (cur[1]) cur[1].setStyle(s1Style);
+      restyleRaions();
     }
     function highlightRaionAt(lat, lon) {
       var code = null;
@@ -623,13 +629,10 @@
   /* ---------------- map ---------------- */
   function coordKey(p) { return p._lat.toFixed(5) + "," + p._lon.toFixed(5); }
 
-  /* fixed bubble size: every project site reads the same; the badge shows the count */
-  function pinSize() { return 18; }
-
   function markerHtml(group, selected) {
     var col = typeColor(group[0].project_type)[0];
     var badge = group.length > 1 ? '<span class="n">' + group.length + "</span>" : "";
-    return '<div class="rs-pin' + (selected ? " sel" : "") + '" style="--pin-c:' + col + ";--pin-d:" + pinSize() + 'px">' + badge + "</div>";
+    return '<div class="rs-pin' + (selected ? " sel" : "") + '" style="--pin-c:' + col + '">' + badge + "</div>";
   }
 
   function popupHtml(group) {
@@ -643,24 +646,7 @@
     }).join("") + "</div>";
   }
 
-  /* Bubbles are clustered by screen distance, so the full-country view stays
-     readable and more, smaller bubbles split out as you zoom in. Sites that
-     fall in the same grid cell merge into one bubble showing the project
-     count; clicking it zooms in. Clustering is off while a project page is
-     open (the selected pin must stay individually addressable). */
-  var CLUSTER_PX = 46, CLUSTER_MAX_ZOOM = 12;
-  var lastList = null;
-
-  function clusterHtml(members) {
-    var types = {};
-    members.forEach(function (p) { types[p.project_type] = true; });
-    var one = Object.keys(types).length === 1;
-    var col = one ? typeColor(members[0].project_type)[0] : "#5B6B7F";
-    return '<div class="rs-pin cl" style="--pin-c:' + col + '"><span class="cn">' + members.length + "</span></div>";
-  }
-
   function drawMarkers(list) {
-    lastList = list;
     markerLayer.clearLayers();
     markers = {};
     var groups = {};
@@ -669,47 +655,19 @@
       var k = coordKey(p);
       (groups[k] = groups[k] || []).push(p);
     });
-    var bounds = [], keys = Object.keys(groups);
-    keys.forEach(function (k) { bounds.push([groups[k][0]._lat, groups[k][0]._lon]); });
-
-    var z = map.getZoom();
-    var cells = {};
-    keys.forEach(function (k) {
-      var g = groups[k], cell = k;
-      if (!openId && z < CLUSTER_MAX_ZOOM) {
-        var pt = map.project([g[0]._lat, g[0]._lon], z);
-        cell = "c" + Math.floor(pt.x / CLUSTER_PX) + "_" + Math.floor(pt.y / CLUSTER_PX);
-      }
-      (cells[cell] = cells[cell] || []).push(k);
-    });
-
-    Object.keys(cells).forEach(function (ck) {
-      var ks = cells[ck];
-      if (ks.length === 1) {
-        var k = ks[0], g = groups[k], d = pinSize();
-        var icon = L.divIcon({ className: "rs-di", html: markerHtml(g, k === selectedKey),
-                               iconSize: [d + 8, d + 8], iconAnchor: [(d + 8) / 2, (d + 8) / 2], popupAnchor: [0, -d / 2] });
-        var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name });
-        m.on("click", function () {
-          if (g.length === 1) { location.hash = "project=" + encodeURIComponent(g[0].project_id); }
-          else { m.bindPopup(popupHtml(g), { maxWidth: 300 }).openPopup(); }
-        });
-        m.addTo(markerLayer);
-        markers[k] = m;
-        return;
-      }
-      // merged bubble: centre on the project-weighted mean position
-      var members = [], lat = 0, lon = 0, pts = [];
-      ks.forEach(function (k) {
-        groups[k].forEach(function (p) { members.push(p); lat += p._lat; lon += p._lon; });
-        pts.push([groups[k][0]._lat, groups[k][0]._lon]);
+    var bounds = [];
+    Object.keys(groups).forEach(function (k) {
+      var g = groups[k];
+      var icon = L.divIcon({ className: "rs-di", html: markerHtml(g, k === selectedKey),
+                             iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -12] });
+      var m = L.marker([g[0]._lat, g[0]._lon], { icon: icon, title: g[0].project_name });
+      m.on("click", function () {
+        if (g.length === 1) { location.hash = "project=" + encodeURIComponent(g[0].project_id); }
+        else { m.bindPopup(popupHtml(g), { maxWidth: 300 }).openPopup(); }
       });
-      var cm = L.marker([lat / members.length, lon / members.length], {
-        icon: L.divIcon({ className: "rs-di", html: clusterHtml(members), iconSize: [34, 34], iconAnchor: [17, 17] }),
-        title: members.length + " projects"
-      });
-      cm.on("click", function () { map.fitBounds(pts, { padding: [60, 60], maxZoom: 16 }); });
-      cm.addTo(markerLayer);
+      m.addTo(markerLayer);
+      markers[k] = m;
+      bounds.push([g[0]._lat, g[0]._lon]);
     });
     return bounds;
   }
@@ -902,7 +860,6 @@
     map = L.map(mapEl, { scrollWheelZoom: false, center: [47.1, 28.6], zoom: 7, zoomSnap: .5, minZoom: 6, maxZoom: 18 });
     adminApi = initAdminLayers(map, selectDistrictFromMap);
     markerLayer = L.layerGroup().addTo(map);
-    map.on("zoomend", function () { if (lastList) drawMarkers(lastList); });
 
     /* filters */
     function uniq(key) {
