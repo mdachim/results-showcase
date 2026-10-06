@@ -99,6 +99,10 @@
     if (!k) return null;
     return DISTRICT_ALIAS[k] || (RAION_CODES && RAION_CODES[k]) || null;
   }
+  // one key/label per raion, so variant spellings group together
+  var DISTRICT_LABELS = {}; // p-code -> spelling shown in the District filter, filled in init
+  function districtKey(name) { return districtCode(name) || name || ""; }
+  function districtLabel(name) { return DISTRICT_LABELS[districtCode(name)] || name || ""; }
 
   function matches(p, f) {
     if (f.type && p.project_type !== f.type) return false;
@@ -314,17 +318,18 @@
   }
 
   function renderTable(list) {
-    var groups = {};
+    var groups = {}, labels = {};
     list.forEach(function (p) {
-      var d = p.district || "";
-      (groups[d] = groups[d] || []).push(p);
+      var k = districtKey(p.district);
+      if (!groups[k]) { groups[k] = []; labels[k] = districtLabel(p.district); }
+      groups[k].push(p);
     });
-    var names = Object.keys(groups).sort(function (a, b) {
+    var keys = Object.keys(groups).sort(function (a, b) {
       if (!a) return 1;
       if (!b) return -1;
-      return a.localeCompare(b);
+      return labels[a].localeCompare(labels[b]);
     });
-    return names.map(function (d) { return renderGroup(d, groups[d]); }).join("");
+    return keys.map(function (k) { return renderGroup(labels[k], groups[k]); }).join("");
   }
 
   /* ---------------- project page ---------------- */
@@ -739,7 +744,7 @@
     }
 
     // municipality options follow the selected district
-    var pool = f.district ? projects.filter(function (p) { return p.district === f.district; }) : projects;
+    var pool = f.district ? projects.filter(function (p) { return districtKey(p.district) === districtKey(f.district); }) : projects;
     var munis = {};
     pool.forEach(function (p) { if (p.municipality) munis[p.municipality] = true; });
     fillSelect(controls.muni, Object.keys(munis).sort(), "All municipalities", true);
@@ -839,13 +844,18 @@
     });
     projects.sort(function (a, b) { return b._inv - a._inv || a.project_name.localeCompare(b.project_name); });
 
+    /* map — vector admin boundaries instead of raster tiles, see initAdminLayers() */
+    map = L.map(mapEl, { scrollWheelZoom: false, center: [47.1, 28.6], zoom: 7, zoomSnap: .5, minZoom: 6, maxZoom: 18 });
+    adminApi = initAdminLayers(map, selectDistrictFromMap);
+    markerLayer = L.layerGroup().addTo(map);
+
     /* headline stats */
     var stats = document.getElementById("rs-stats");
     if (stats) {
       var districts = {};
       var inv = 0, done = 0;
       projects.forEach(function (p) {
-        if (p.district) districts[p.district] = true;
+        if (p.district) districts[districtKey(p.district)] = true;
         inv += p._inv;
         if (p.status === "Completed") done++;
       });
@@ -856,11 +866,6 @@
       stats.hidden = false;
     }
 
-    /* map — vector admin boundaries instead of raster tiles, see initAdminLayers() */
-    map = L.map(mapEl, { scrollWheelZoom: false, center: [47.1, 28.6], zoom: 7, zoomSnap: .5, minZoom: 6, maxZoom: 18 });
-    adminApi = initAdminLayers(map, selectDistrictFromMap);
-    markerLayer = L.layerGroup().addTo(map);
-
     /* filters */
     function uniq(key) {
       var set = {};
@@ -869,7 +874,9 @@
     }
     var types = uniq("project_type");
     fillSelect(controls.type, types, "All types");
-    fillSelect(controls.district, districtOptions(uniq("district")), "All districts");
+    var districtNames = districtOptions(uniq("district"));
+    districtNames.forEach(function (d) { var c = districtCode(d); if (c) DISTRICT_LABELS[c] = d; });
+    fillSelect(controls.district, districtNames, "All districts");
     fillSelect(controls.muni, uniq("municipality"), "All municipalities");
     fillSelect(controls.facility, uniq("facility_type"), "All facility types");
     fillSelect(controls.status, uniq("status"), "All statuses");
