@@ -1,4 +1,4 @@
-# Results Showcase — Cities of Solidarity Moldova
+# Results Showcase - Moldova
 
 A standalone map and project portfolio of UNHCR-funded communal infrastructure projects across Moldova.
 
