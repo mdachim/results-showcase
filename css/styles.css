@@ -239,6 +239,11 @@ header.hero{min-height:88svh;display:flex;flex-direction:column;position:relativ
 .stat-card .num sup{font-size:.42em;font-weight:400;color:var(--ink-faint);top:-.9em}
 .stat-card .lbl{margin-top:12px;font-size:14.5px;color:var(--ink-soft);line-height:1.45}
 .stat-card .tag{position:absolute;top:18px;right:20px;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;color:var(--ink-faint);text-transform:uppercase}
+.stat-card{display:flex;flex-direction:column}
+.stat-card .sel{margin-top:auto;padding-top:14px;font-size:13.5px;color:var(--ink-soft)}
+.stat-card .sel::before{content:"";display:block;border-top:1px dashed var(--line);margin:0 0 10px}
+.stat-card .sel b{color:var(--ink);font-weight:600}
+.stat-card .sel[hidden]{display:none}
 
 /* icon pills (shared) */
 .icon-row{display:flex;gap:14px;flex-wrap:wrap;margin-top:46px}

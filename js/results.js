@@ -722,10 +722,43 @@
     render();
   }
 
+  /* ---------------- headline stats ---------------- */
+  var totals = null; // whole-portfolio figures, set once in init
+  function summarize(list) {
+    var districts = {}, inv = 0, done = 0;
+    list.forEach(function (p) {
+      if (p.district) districts[districtKey(p.district)] = true;
+      inv += p._inv;
+      if (p.status === "Completed") done++;
+    });
+    return { projects: list.length, districts: Object.keys(districts).length, inv: inv, done: done };
+  }
+
+  /* The big numbers always show the whole portfolio; while any filter is
+     set, each card adds a "Filtered" line with the selection's share. */
+  function renderStatSelection(list, f) {
+    if (!totals) return;
+    var active = Object.keys(f).some(function (k) { return f[k]; });
+    var sel = active ? summarize(list) : null;
+    function fmt(n) { return Math.round(n).toLocaleString("en-US"); }
+    function pct(n, d) { return d ? " · " + (n / d * 100 < 1 && n ? "<1" : Math.round(n / d * 100)) + "%" : ""; }
+    [["st-projects-sel", "projects", true], ["st-districts-sel", "districts", true],
+     ["st-investment-sel", "inv", false], ["st-completed-sel", "done", true]].forEach(function (c) {
+      var el = document.getElementById(c[0]);
+      if (!el) return;
+      el.hidden = !active;
+      if (!active) return;
+      var v = sel[c[1]], t = totals[c[1]];
+      el.innerHTML = "Filtered: <b>" + (c[2] ? fmt(v) : "USD " + fmt(v)) + "</b>" +
+        (c[2] ? " of " + fmt(t) : pct(v, t));
+    });
+  }
+
   /* ---------------- overview render ---------------- */
   function render() {
     var f = currentFilters();
     shownList = projects.filter(function (p) { return matches(p, f); });
+    renderStatSelection(shownList, f);
 
     if (countEl) countEl.textContent = shownList.length + " of " + projects.length + " projects shown";
     grid.innerHTML = shownList.length ? renderTable(shownList) :
@@ -852,17 +885,11 @@
     /* headline stats */
     var stats = document.getElementById("rs-stats");
     if (stats) {
-      var districts = {};
-      var inv = 0, done = 0;
-      projects.forEach(function (p) {
-        if (p.district) districts[districtKey(p.district)] = true;
-        inv += p._inv;
-        if (p.status === "Completed") done++;
-      });
-      document.getElementById("st-projects").setAttribute("data-target", projects.length);
-      document.getElementById("st-districts").setAttribute("data-target", Object.keys(districts).length);
-      document.getElementById("st-investment").setAttribute("data-target", Math.round(inv));
-      document.getElementById("st-completed").setAttribute("data-target", done);
+      totals = summarize(projects);
+      document.getElementById("st-projects").setAttribute("data-target", totals.projects);
+      document.getElementById("st-districts").setAttribute("data-target", totals.districts);
+      document.getElementById("st-investment").setAttribute("data-target", Math.round(totals.inv));
+      document.getElementById("st-completed").setAttribute("data-target", totals.done);
       stats.hidden = false;
     }
 

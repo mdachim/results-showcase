@@ -15,7 +15,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,300;0,400;0,700;0,900;1,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
       integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
-<link rel="stylesheet" href="css/styles.css?v=8">
+<link rel="stylesheet" href="css/styles.css?v=9">
 </head>
 <body>
 <a class="skip-link" href="#main">Skip to main content</a>
@@ -55,21 +55,25 @@
         <span class="tag">Portfolio</span>
         <div class="num"><span class="count" id="st-projects" data-target="0">0</span></div>
         <div class="lbl">Projects funded across the country</div>
+        <div class="sel" id="st-projects-sel" aria-live="polite" hidden></div>
       </div>
       <div class="stat-card" style="--ac:var(--yellow)">
         <span class="tag">Coverage</span>
         <div class="num"><span class="count" id="st-districts" data-target="0">0</span></div>
         <div class="lbl">Districts with at least one investment</div>
+        <div class="sel" id="st-districts-sel" aria-live="polite" hidden></div>
       </div>
       <div class="stat-card" style="--ac:var(--green)">
         <span class="tag">Investment (USD)</span>
         <div class="num"><span class="count" id="st-investment" data-target="0">0</span></div>
         <div class="lbl">Total investment recorded to date</div>
+        <div class="sel" id="st-investment-sel" aria-live="polite" hidden></div>
       </div>
       <div class="stat-card" style="--ac:var(--cyan)">
         <span class="tag">Delivery</span>
         <div class="num"><span class="count" id="st-completed" data-target="0">0</span></div>
         <div class="lbl">Projects already completed</div>
+        <div class="sel" id="st-completed-sel" aria-live="polite" hidden></div>
       </div>
     </div>
 
@@ -179,6 +183,6 @@
 <script src="js/data-loader.js"></script>
 <script src="js/main.js"></script>
 <script src="assets/map/moldova_admin_data.js"></script>
-<script src="js/results.js?v=9"></script>
+<script src="js/results.js?v=10"></script>
 </body>
 </html>
