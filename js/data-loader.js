@@ -13,7 +13,9 @@
  * helpful message when opened via file:// (see README).
  */
 function loadJSON(url) {
-  return fetch(url).then(function (res) {
+  // "no-cache" makes the browser check with the server every time (cheap
+  // when unchanged), so a republished JSON shows up without a hard refresh.
+  return fetch(url, { cache: "no-cache" }).then(function (res) {
     if (!res.ok) throw new Error("HTTP " + res.status + " while loading " + url);
     return res.json();
   }).catch(function (err) {
